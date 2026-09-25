@@ -1,23 +1,33 @@
-import time
 from common.db import init_db
 from common.consumer import consumer, mark_processed, publish_dlq
 
-def handle(payload):
-    print("[analytics_service] Analytics recording: order=" + payload["order_id"])
+
+def handle(event):
+    payload = event["payload"]
+    print(
+        "[analytics_service] Analytics recording: order="
+        + payload["order_id"]
+    )
+
 
 def main():
     init_db()
     c = consumer("orders.created", "analytics")
+
     for message in c:
-        payload = message.value
-        event_id = payload.get("event_id", f"offset-{message.offset}")
+        event = message.value
+        event_id = event.get("event_id", f"offset-{message.offset}")
+
         try:
             if mark_processed(event_id):
-                handle(payload)
+                handle(event)
+
             c.commit()
+
         except Exception as exc:
-            publish_dlq(payload, exc)
+            publish_dlq(event, exc)
             c.commit()
+
 
 if __name__ == "__main__":
     main()

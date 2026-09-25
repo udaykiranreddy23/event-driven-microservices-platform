@@ -6,9 +6,10 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: orders
     ports: ["5432:5432"]
-    volumes: [postgres_data:/var/lib/postgresql/data]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U app -d orders"]
+      test: ["CMD-SHELL", "pg_isready -U app -d orders"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -31,7 +32,8 @@ services:
       - --kafka-addr=PLAINTEXT://0.0.0.0:9092
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
     ports: ["9092:9092"]
-    volumes: [redpanda_data:/var/lib/redpanda/data]
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
 
   order-service:
     build: .
@@ -42,10 +44,35 @@ services:
       SERVICE_NAME: order-service
     ports: ["8000:8000"]
     depends_on:
-      postgres: {condition: service_healthy}
-      redpanda: {condition: service_started}
-      redis: {condition: service_started}
-    command: ["uvicorn","services.order_service.app:app","--host","0.0.0.0","--port","8000"]
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+      redis:
+        condition: service_started
+    command:
+      [
+        "uvicorn",
+        "services.order_service.app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
+
+  outbox-publisher:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://app:app@postgres:5432/orders
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SERVICE_NAME: outbox-publisher
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    command:
+      ["python", "-m", "services.outbox_publisher.worker"]
 
   inventory-service:
     build: .
@@ -53,8 +80,11 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/orders
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVICE_NAME: inventory-service
-    depends_on: {redpanda: {condition: service_started}}
-    command: ["python","-m","services.inventory_service.worker"]
+    depends_on:
+      redpanda:
+        condition: service_started
+    command:
+      ["python", "-m", "services.inventory_service.worker"]
 
   payment-service:
     build: .
@@ -62,8 +92,11 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/orders
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVICE_NAME: payment-service
-    depends_on: {redpanda: {condition: service_started}}
-    command: ["python","-m","services.payment_service.worker"]
+    depends_on:
+      redpanda:
+        condition: service_started
+    command:
+      ["python", "-m", "services.payment_service.worker"]
 
   notification-service:
     build: .
@@ -71,8 +104,11 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/orders
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVICE_NAME: notification-service
-    depends_on: {redpanda: {condition: service_started}}
-    command: ["python","-m","services.notification_service.worker"]
+    depends_on:
+      redpanda:
+        condition: service_started
+    command:
+      ["python", "-m", "services.notification_service.worker"]
 
   analytics-service:
     build: .
@@ -80,8 +116,11 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/orders
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       SERVICE_NAME: analytics-service
-    depends_on: {redpanda: {condition: service_started}}
-    command: ["python","-m","services.analytics_service.worker"]
+    depends_on:
+      redpanda:
+        condition: service_started
+    command:
+      ["python", "-m", "services.analytics_service.worker"]
 
 volumes:
   postgres_data:
